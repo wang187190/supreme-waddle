@@ -1,0 +1,119 @@
+##R£º
+library("rms")    
+library("glmnet")  
+library("pROC")     
+library("rmda")
+
+aa<-read.csv("HCC grade.csv")
+rt<-aa
+cv_x<-as.matrix(rt[,(2:49)])
+cv_y<-as.matrix(rt[,1])
+set.seed(1234)
+
+####
+lasso_selection<-cv.glmnet(x=cv_x,y=cv_y,family="binomial",type.measure="deviance",alpha=1,nfolds=10)
+par(font.lab=2,mfrow=c(2,1),mar=c(4.5,5,3,2))
+plot(x=lasso_selection,las=1,xlab="Log(lambda)")
+nocv_lasso<-glmnet(x=cv_x,y=cv_y,family="binomial",alpha=1)
+plot(nocv_lasso,xvar="lambda",las=1,lwd=2,xlab="Log(lambda)")
+abline(v=log(lasso_selection$lambda.1se),lwd=1,lty=3,col="black")
+   
+####
+coefPara<-coef(object = lasso_selection,s="lambda.1se")
+lasso_values<-as.data.frame(which(coefPara!=0,arr.ind = T))
+lasso_names<-rownames(lasso_values)[-1]
+lasso_coef<-data.frame(Feature=rownames(lasso_values),
+                       Coef=coefPara[which(coefPara!=0,arr.ind = T)])
+lasso_coef
+cv$lambda.1se
+
+####
+model <- glm(formula = gard~ADC+Peritumoral enhancement+Peritumoral hypointensity+HBP3+HBP4+AFP+NLR+AGR+ALRI+NrLR+ANRI+age+SIRI+gender,
+             data = rt,family = binomial)
+model
+summary(model)
+##OR
+exp(cbind(OR=coef(model),confint(model)))
+
+####
+cal<-calibrate(mode2,method = "boot",B=1000)
+plot(cal,
+     xlab="Nomogram-predicted probability of nonadherence",
+     ylab="Actual diagnosed nonadherence (proportion)",
+     sub=F)
+
+####
+library("ResourceSelection")
+mod <-glm(gard~ADC+PE.on.AP+HBP3+NLR+AGR+ALRI+NrLR+AFP,data = rt,family = binomial)
+h1<-hoslem.test(mod$y,fitted(mod),g=10)
+h1
+
+####DCA
+modul<-decision_curve(data = rt,
+                      gard~ADC+PE.on.AP+HBP3+NLR+AGR+ALRI+NrLR+AFP,
+                      thresholds = seq(0,1,by=0.01),
+                      confidence.intervals = 0.95)
+plot_decision_curve(modul,
+                    curve.names = "Nonadherence prediction nomogram",
+                    xlab = "Threshold probability",
+                    cost.benefit.axis = FALSE,col = "red",
+                    confidence.intervals = FALSE,
+                    standardize = FALSE)
+
+####CIC
+plot_clinical_impact(modul,population.size = 1000,cost.benefit.axis = T,
+                     n.cost.benefits = 8,col = c('red','blue'),
+                     confidence.intervals = T)
+
+
+####
+library("DynNom")
+data <- read.csv("F:/paoshuju/hccgard.csv",header=T)
+names(data)
+data$PE.on.AP <- factor(rt$PE.on.AP,labels = c("No","Yes"))
+data$HBP3 <- factor(rt$HBP3,labels = c("<0.54",">0.54"))
+data$NLR <- factor(rt$NLR,labels = c("<2.34",">2.34"))
+data$AGR <- factor(rt$AGR,labels = c(">1.68","<1.68"))
+data$ALRI <- factor(rt$ALRI,labels = c(">33.78","<33.78"))
+data$NrLR <- factor(rt$NrLR,labels = c("<281.98",">281.98"))
+data$AFP <- factor(rt$AFP,labels = c("<400",">400"))
+dat<- data
+fit.glm<- glm(gard~ADC+PE.on.AP+HBP3+NLR+AGR+ALRI+NrLR+AFP,data =dat,family = binomial())
+DNbuilder(fit.glm,covariate = "numeric")
+library("rsconnect")
+rsconnect::setAccountInfo(name='iexiantu',
+                          token='E62F24FB5ECE942C908EBDE3D50C',
+                          secret='DT8tg6QJGj58spqknVbjhmY75WeunDf7KhF')
+accounts(server = NULL) 
+removeAccount(name = ,server = NULL)
+dir<- getwd()
+path<-paste0(dir,"/DynNomapp",collapse = "")
+path
+rsconnect::deployApp("C:/Users/Administrator/Documents/DynNomapp")
+
+####
+library("survival")
+library("survminer")
+rt <- read.csv("F:/RFS.csv",header=T)
+head(rt)
+attach(rt)
+Surv(timeRFS,status)
+fit<-survfit(Surv(timeRFS,status)~grade,data = rt)
+fit
+summary(fit)
+ggsurvplot(fit,data = rt)
+ggsurvplot(fit,data = rt,
+           conf.int = TRUE,
+           pval=TRUE,
+           surv.median.line = "hv",
+           risk.table = TRUE,
+           risk.table.col="strata",
+           tables.height = 0.2,tables.theme = theme_cleantable(),
+           xlab="Follow up time(month)",
+           legend=c(0.95,0.90),
+           legend.title="",
+           legend.labs=c("High grade HCC","Low grade HCC"),
+           break.x.by=10)
+
+
+
